@@ -8,7 +8,7 @@ public class FrequencyFilter implements PixelFilter {
     private int segmentAmt, segmentSize;
 
     public FrequencyFilter() {
-        segmentAmt = 20;
+        segmentAmt = 4;
         segmentSize = 255 / (segmentAmt - 1);
     }
 
