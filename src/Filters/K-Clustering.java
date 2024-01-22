@@ -35,7 +35,7 @@ public class PolychromeFilter implements PixelFilter {
         return img;
     }
 
-    public Point[] convertToPoints(short[][] grid) {
+    public Point[] convertToPoints(short[][] reds, short[][] greens, short[][] blues) {
         // Just construct with the grid values
         return null;
     }
@@ -48,11 +48,14 @@ public class PolychromeFilter implements PixelFilter {
 
 class Point {
     int red, green, blue;
+    int row, col;
 
-    public Point(int red, int green, int blue) {
+    public Point(int red, int green, int blue, int row, int col) {
         this.red = red;
         this.green = green;
         this.blue = blue;
+        this.row = row;
+        this.col = col;
     }
 
     public void assignToCenter(ClusterCenter[] centers) {
