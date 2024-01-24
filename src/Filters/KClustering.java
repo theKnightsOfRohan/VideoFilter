@@ -6,14 +6,14 @@ import core.DImage;
 import java.util.ArrayList;
 
 public class KClustering implements PixelFilter {
-    int cycles;
+    int maxCycles;
     double marginOfChange;
     int clusterAmt;
 
     public KClustering() {
-        cycles = 50;
-        marginOfChange = 0.1;
-        clusterAmt = 100;
+        maxCycles = 50;
+        marginOfChange = 0.001;
+        clusterAmt = 50;
     }
 
     @Override
@@ -26,7 +26,9 @@ public class KClustering implements PixelFilter {
 
         ClusterCenter[] centers = initClusterCenters(clusterAmt);
 
-        for (int i = 0; i < cycles; i++) {
+        int cycles = 0;
+        boolean keepGoing = true;
+        while (keepGoing) {
             for (ClusterCenter c : centers) {
                 c.clearPoints();
             }
@@ -35,8 +37,16 @@ public class KClustering implements PixelFilter {
                 p.assignToCenter(centers);
             }
 
+            double change = 0;
             for (ClusterCenter c : centers) {
-                c.recalculateCenter();
+                change += c.recalculateCenter();
+            }
+
+            cycles++;
+            System.out.println("Cycle: " + cycles + " Change: " + change);
+
+            if (change < marginOfChange) {
+                keepGoing = false;
             }
         }
 
@@ -55,7 +65,7 @@ public class KClustering implements PixelFilter {
             }
         }
 
-        return points.toArray(new Point[0]);
+        return points.toArray(new Point[points.size()]);
     }
 
     public ClusterCenter[] initClusterCenters(int amt) {
@@ -129,7 +139,11 @@ class ClusterCenter {
         closestPoints.clear();
     }
 
-    public void recalculateCenter() {
+    public double recalculateCenter() {
+        double oldRed = red;
+        double oldGreen = green;
+        double oldBlue = blue;
+
         red = 0;
         green = 0;
         blue = 0;
@@ -139,16 +153,21 @@ class ClusterCenter {
             blue += p.blue;
         }
 
-        // Expected is that the only arithmetic exception is dividing by 0
         try {
             red /= closestPoints.size();
             green /= closestPoints.size();
             blue /= closestPoints.size();
+            if (Double.isNaN(red) || Double.isNaN(green) || Double.isNaN(blue)) {
+                throw new ArithmeticException();
+            }
         } catch (ArithmeticException e) {
             red = Math.random() * 256;
             green = Math.random() * 256;
             blue = Math.random() * 256;
         }
+
+        // Return the distance between the old center and the new center
+        return Math.sqrt(Math.pow(red - oldRed, 2) + Math.pow(green - oldGreen, 2) + Math.pow(blue - oldBlue, 2));
     }
 
     public String toString() {
