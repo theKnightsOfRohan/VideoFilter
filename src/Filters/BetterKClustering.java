@@ -2,18 +2,20 @@ package Filters;
 
 import Interfaces.PixelFilter;
 import core.DImage;
-
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Objects;
 import java.util.ArrayList;
 
-public class KClustering implements PixelFilter {
+public class BetterKClustering implements PixelFilter {
     int maxCycles;
     double marginOfChange;
     int clusterAmt;
 
-    public KClustering() {
-        maxCycles = 50;
+    public BetterKClustering() {
+        maxCycles = 500;
         marginOfChange = 0.001;
-        clusterAmt = 50;
+        clusterAmt = 4;
     }
 
     @Override
@@ -22,13 +24,13 @@ public class KClustering implements PixelFilter {
         short[][] greens = img.getGreenChannel();
         short[][] blues = img.getBlueChannel();
 
-        Point[] points = convertToPoints(reds, greens, blues);
+        Point[] points = grabPoints(reds, greens, blues);
+        points = filterUniquePoints(points);
 
         ClusterCenter[] centers = initClusterCenters(clusterAmt);
 
         int cycles = 0;
-        boolean keepGoing = true;
-        while (keepGoing) {
+        while (true) {
             for (ClusterCenter c : centers) {
                 c.clearPoints();
             }
@@ -45,8 +47,8 @@ public class KClustering implements PixelFilter {
             cycles++;
             System.out.println("Cycle: " + cycles + " Change: " + change);
 
-            if (change < marginOfChange) {
-                keepGoing = false;
+            if (change < marginOfChange || cycles > maxCycles) {
+                break;
             }
         }
 
@@ -56,16 +58,22 @@ public class KClustering implements PixelFilter {
         return img;
     }
 
-    public Point[] convertToPoints(short[][] reds, short[][] greens, short[][] blues) {
+    public Point[] grabPoints(short[][] reds, short[][] greens, short[][] blues) {
         ArrayList<Point> points = new ArrayList<>();
 
-        for (int r = 0; r < reds.length; r++) {
-            for (int c = 0; c < reds[0].length; c++) {
+        for (int r = 0; r < reds.length; r += 2) {
+            for (int c = 0; c < reds[0].length; c += 2) {
                 points.add(new Point(reds[r][c], greens[r][c], blues[r][c], r, c));
             }
         }
 
-        return points.toArray(new Point[points.size()]);
+        return Arrays.stream(points.toArray(new Point[points.size()]))
+                .distinct()
+                .toArray(Point[]::new);
+    }
+
+    public Point[] filterUniquePoints(Point[] points) {
+        return Arrays.stream(points).distinct().toArray(Point[]::new);
     }
 
     public ClusterCenter[] initClusterCenters(int amt) {
@@ -77,11 +85,15 @@ public class KClustering implements PixelFilter {
     }
 
     public void roundPoints(short[][] reds, short[][] greens, short[][] blues, ClusterCenter[] centers) {
-        for (ClusterCenter c : centers) {
-            for (Point p : c.closestPoints) {
-                reds[p.row][p.col] = (short) Math.round(c.red);
-                greens[p.row][p.col] = (short) Math.round(c.green);
-                blues[p.row][p.col] = (short) Math.round(c.blue);
+        Point p;
+        ClusterCenter center;
+        for (int r = 0; r < reds.length; r++) {
+            for (int c = 0; c < reds[0].length; c++) {
+                p = new Point(reds[r][c], greens[r][c], blues[r][c], r, c);
+                center = p.assignToCenter(centers);
+                reds[r][c] = (short) center.red;
+                greens[r][c] = (short) center.green;
+                blues[r][c] = (short) center.blue;
             }
         }
     }
@@ -98,7 +110,7 @@ public class KClustering implements PixelFilter {
             this.col = col;
         }
 
-        public void assignToCenter(ClusterCenter[] centers) {
+        public ClusterCenter assignToCenter(ClusterCenter[] centers) {
             ClusterCenter closestCenter = centers[0];
             double closestDistance = distanceToCenter(closestCenter);
 
@@ -111,6 +123,7 @@ public class KClustering implements PixelFilter {
             }
 
             closestCenter.closestPoints.add(this);
+            return closestCenter;
         }
 
         public double distanceToCenter(ClusterCenter center) {
@@ -119,6 +132,21 @@ public class KClustering implements PixelFilter {
             double bDistSq = Math.pow(blue - center.blue, 2);
 
             return Math.sqrt(rDistSq + gDistSq + bDistSq);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o)
+                return true;
+            if (!(o instanceof Point))
+                return false;
+            Point point = (Point) o;
+            return red == point.red && green == point.green && blue == point.blue;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(red, green, blue);
         }
     }
 
