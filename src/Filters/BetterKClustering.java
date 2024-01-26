@@ -3,7 +3,6 @@ package Filters;
 import Interfaces.PixelFilter;
 import core.DImage;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.Objects;
 import java.util.ArrayList;
 
@@ -15,7 +14,7 @@ public class BetterKClustering implements PixelFilter {
     public BetterKClustering() {
         maxCycles = 500;
         marginOfChange = 0.001;
-        clusterAmt = 4;
+        clusterAmt = 256;
     }
 
     @Override
@@ -47,18 +46,20 @@ public class BetterKClustering implements PixelFilter {
             cycles++;
             System.out.println("Cycle: " + cycles + " Change: " + change);
 
-            if (change < marginOfChange || cycles > maxCycles) {
+            if (change < marginOfChange) {
                 break;
             }
         }
 
         roundPoints(reds, greens, blues, centers);
 
+        System.out.println("===> Done");
         img.setColorChannels(reds, greens, blues);
         return img;
     }
 
     public Point[] grabPoints(short[][] reds, short[][] greens, short[][] blues) {
+        System.out.println("===> Grabbing points");
         ArrayList<Point> points = new ArrayList<>();
 
         for (int r = 0; r < reds.length; r += 2) {
@@ -67,16 +68,17 @@ public class BetterKClustering implements PixelFilter {
             }
         }
 
-        return Arrays.stream(points.toArray(new Point[points.size()]))
-                .distinct()
-                .toArray(Point[]::new);
+        return points.toArray(new Point[0]);
     }
 
     public Point[] filterUniquePoints(Point[] points) {
+        System.out.println("===> Filtering unique points");
         return Arrays.stream(points).distinct().toArray(Point[]::new);
     }
 
     public ClusterCenter[] initClusterCenters(int amt) {
+        System.out.println("===> Initializing cluster centers");
+
         ClusterCenter[] centers = new ClusterCenter[amt];
         for (int i = 0; i < amt; i++) {
             centers[i] = new ClusterCenter();
@@ -85,6 +87,7 @@ public class BetterKClustering implements PixelFilter {
     }
 
     public void roundPoints(short[][] reds, short[][] greens, short[][] blues, ClusterCenter[] centers) {
+        System.out.println("===> Rounding points");
         Point p;
         ClusterCenter center;
         for (int r = 0; r < reds.length; r++) {
@@ -136,12 +139,15 @@ public class BetterKClustering implements PixelFilter {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o)
-                return true;
+            Point point;
             if (!(o instanceof Point))
                 return false;
-            Point point = (Point) o;
-            return red == point.red && green == point.green && blue == point.blue;
+            else
+                point = (Point) o;
+
+            boolean eq = this == o || (this.red == point.red && this.green == point.green && this.blue == point.blue);
+
+            return eq;
         }
 
         @Override
