@@ -53,16 +53,19 @@ public class BasicConvolutions implements PixelFilter {
                     }
                 }
 
+                int centerRow = r + (kernelSize / 2);
+                int centerCol = c + (kernelSize / 2);
+
                 try {
-                    newGrid[r + (kernelSize / 2)][c + (kernelSize / 2)] = (short) (sum / kernelSum);
+                    newGrid[centerRow][centerCol] = (short) (sum / kernelSum);
                 } catch (ArithmeticException e) {
-                    newGrid[r + (kernelSize / 2)][c + (kernelSize / 2)] = (short) (sum);
+                    newGrid[centerRow][centerCol] = (short) (sum);
                 }
 
-                if (newGrid[r + (kernelSize / 2)][c + (kernelSize / 2)] < 0)
-                    newGrid[r + (kernelSize / 2)][c + (kernelSize / 2)] = 0;
-                else if (newGrid[r + (kernelSize / 2)][c + (kernelSize / 2)] > 255)
-                    newGrid[r + (kernelSize / 2)][c + (kernelSize / 2)] = 255;
+                if (newGrid[centerRow][centerCol] < 0)
+                    newGrid[centerRow][centerCol] = 0;
+                else if (newGrid[centerRow][centerCol] > 255)
+                    newGrid[centerRow][centerCol] = 255;
             }
         }
 
