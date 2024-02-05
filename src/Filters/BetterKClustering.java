@@ -4,7 +4,9 @@ import Interfaces.PixelFilter;
 import core.DImage;
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.PriorityQueue;
 import java.util.ArrayList;
+import java.util.HashMap;
 
 public class BetterKClustering implements PixelFilter {
     int maxCycles;
@@ -14,7 +16,7 @@ public class BetterKClustering implements PixelFilter {
     public BetterKClustering() {
         maxCycles = 500;
         marginOfChange = 0.001;
-        clusterAmt = 256;
+        clusterAmt = 5;
     }
 
     @Override
@@ -28,14 +30,28 @@ public class BetterKClustering implements PixelFilter {
 
         ClusterCenter[] centers = initClusterCenters(clusterAmt);
 
+        System.out.println("===> Constructing distance map");
+        HashMap<ClusterCenter, PriorityQueue<ClusterDistance>> distances = constructDistanceMap(
+                new HashMap<ClusterCenter, PriorityQueue<ClusterDistance>>(), centers);
+
+        for (ClusterCenter c : distances.keySet()) {
+            System.out.println(c + " Distances: " + distances.get(c) + "}");
+        }
+
+        for (Point p : points) {
+            p.assignToCenter(centers);
+        }
+
         int cycles = 0;
         while (true) {
+            cycles++;
+
             for (ClusterCenter c : centers) {
                 c.clearPoints();
             }
 
             for (Point p : points) {
-                p.assignToCenter(centers);
+                p.assignToCenter(distances.get(p.closestCenter));
             }
 
             double change = 0;
@@ -43,13 +59,15 @@ public class BetterKClustering implements PixelFilter {
                 change += c.recalculateCenter();
             }
 
-            cycles++;
-            System.out.println("Cycle: " + cycles + " Change: " + change);
+            distances = constructDistanceMap(distances, centers);
 
+            // System.out.println("Cycle: " + cycles + " Change: " + change);
             if (change < marginOfChange) {
                 break;
             }
         }
+
+        System.out.println("Cycles: " + cycles);
 
         roundPoints(reds, greens, blues, centers);
 
@@ -86,6 +104,23 @@ public class BetterKClustering implements PixelFilter {
         return centers;
     }
 
+    public HashMap<ClusterCenter, PriorityQueue<ClusterDistance>> constructDistanceMap(
+            HashMap<ClusterCenter, PriorityQueue<ClusterDistance>> distances, ClusterCenter[] centers) {
+
+        for (ClusterCenter c : centers) {
+            distances.put(c, new PriorityQueue<ClusterDistance>());
+        }
+
+        for (int i = 0; i < centers.length; i++) {
+            for (int j = i + 1; j < centers.length; j++) {
+                distances.get(centers[i]).add(new ClusterDistance(centers[i], centers[j]));
+                distances.get(centers[j]).add(new ClusterDistance(centers[j], centers[i]));
+            }
+        }
+
+        return distances;
+    }
+
     public void roundPoints(short[][] reds, short[][] greens, short[][] blues, ClusterCenter[] centers) {
         System.out.println("===> Rounding points");
         Point p;
@@ -104,6 +139,8 @@ public class BetterKClustering implements PixelFilter {
     static class Point {
         short red, green, blue;
         int row, col;
+        ClusterCenter closestCenter;
+        double closestCenterDist;
 
         public Point(short red, short green, short blue, int row, int col) {
             this.red = red;
@@ -115,18 +152,35 @@ public class BetterKClustering implements PixelFilter {
 
         public ClusterCenter assignToCenter(ClusterCenter[] centers) {
             ClusterCenter closestCenter = centers[0];
-            double closestDistance = distanceToCenter(closestCenter);
+            double minDist = distanceToCenter(closestCenter);
 
             for (int i = 1; i < centers.length; i++) {
-                double distance = distanceToCenter(centers[i]);
-                if (distance < closestDistance) {
+                double dist = distanceToCenter(centers[i]);
+                if (dist < minDist) {
                     closestCenter = centers[i];
-                    closestDistance = distance;
+                    minDist = dist;
                 }
             }
 
-            closestCenter.closestPoints.add(this);
+            this.closestCenter = closestCenter;
+            this.closestCenterDist = minDist;
+            this.closestCenter.closestPoints.add(this);
             return closestCenter;
+        }
+
+        public ClusterCenter assignToCenter(PriorityQueue<ClusterDistance> distances) {
+            for (ClusterDistance cd : distances) {
+                if (closestCenterDist * 2 < cd.distance) {
+                    continue;
+                }
+
+                this.closestCenter = cd.other;
+                this.closestCenterDist = distanceToCenter(cd.other);
+                this.closestCenter.closestPoints.add(this);
+                return cd.other;
+            }
+
+            return this.closestCenter;
         }
 
         public double distanceToCenter(ClusterCenter center) {
@@ -204,7 +258,36 @@ public class BetterKClustering implements PixelFilter {
         }
 
         public String toString() {
-            return "Points: " + closestPoints.size() + " Red: " + red + " Green: " + green + " Blue: " + blue;
+            return "{Points: " + closestPoints.size() + ", Red: " + red + ", Green: " + green
+                    + ", Blue: " + blue + ",";
+        }
+    }
+
+    static class ClusterDistance implements Comparable<ClusterDistance> {
+        ClusterCenter other;
+        double distance;
+
+        public ClusterDistance(ClusterCenter base, ClusterCenter other) {
+            this.other = other;
+            this.distance = calculateDistance(base);
+        }
+
+        public double calculateDistance(ClusterCenter base) {
+            // Remove math.pow for manual
+            double rDistSq = Math.pow(base.red - this.other.red, 2);
+            double gDistSq = Math.pow(base.green - this.other.green, 2);
+            double bDistSq = Math.pow(base.blue - this.other.blue, 2);
+
+            return Math.sqrt(rDistSq + gDistSq + bDistSq);
+        }
+
+        @Override
+        public int compareTo(ClusterDistance o) {
+            return Double.compare(this.distance, o.distance);
+        }
+
+        public String toString() {
+            return "{Distance: " + distance + ", Other: " + other + "}";
         }
     }
 }
